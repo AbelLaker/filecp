@@ -110,12 +110,32 @@ func (t *FileCp) info_copy(r Operator, w Operator) error {
 	if err != nil {
 		return err
 	}
-	t.r_size = st_f.Size()
+	t.r_size = st_f.Size
 	st_t, err := w.Stat()
 	if err != nil {
 		t.w_size = 0
 	} else {
-		t.w_size = st_t.Size()
+		t.w_size = st_t.Size
+	}
+	return nil
+}
+
+func (t *FileCp) seek_copy(r Operator, w Operator) error {
+	n, err := r.Seek(t.w_size)
+	if err != nil {
+		return err
+	}
+	if n != t.w_size {
+		t.w_size = n
+	}
+
+	n, err = w.Seek(t.w_size)
+	if err != nil {
+		return err
+	}
+	if n != t.w_size {
+		t.w_size = n
+		return t.seek_copy(r, w)
 	}
 	return nil
 }
@@ -136,18 +156,21 @@ func (t *FileCp) copy_loop(r Operator, w Operator) error {
 		subt := 0
 		for {
 			n, err := r.Read(buf)
-			if n == 0 || err == io.EOF {
-				return nil
+			if err != nil {
+				if err == io.EOF {
+					return w.WriteEnd()
+				}
+				return err
 			}
+			_, err = w.Write(buf[:n])
 			if err != nil {
 				return err
 			}
-			w.Write(buf[:n])
 			t.w_size += int64(n)
 			subt += n
 			t.cp_bytes += int64(n)
 			if t.w_size >= t.r_size {
-				return nil
+				return w.WriteEnd()
 			}
 			if int64(subt) >= maxspeed {
 				break
@@ -161,7 +184,7 @@ func (t *FileCp) copy_loop(r Operator, w Operator) error {
 }
 
 func (t *FileCp) copy_excute(r Operator, w Operator) error {
-	fmt.Println("copy_excute:", r, w)
+	//fmt.Println("copy_excute:", r, w)
 	err := t.info_copy(r, w)
 	if err != nil {
 		return err
@@ -170,23 +193,24 @@ func (t *FileCp) copy_excute(r Operator, w Operator) error {
 		fmt.Println(w.Path(), "has finished!")
 		return nil
 	}
-	err = r.Open(FILe_OPEN_MODE_READ)
+	rmod := FILe_OPEN_MODE_READ
+	wmod := FILe_OPEN_MODE_WRITE
+	if t.IsCheckMd5() {
+		rmod |= FILe_COPY_WITH_MD5
+		wmod |= FILe_COPY_WITH_MD5
+	}
+	err = r.Open(rmod)
 	if err != nil {
 		return err
 	}
 	defer r.Close()
-	err = w.Open(FILe_OPEN_MODE_WRITE)
+	err = w.Open(wmod)
 	if err != nil {
 		return err
 	}
 	defer w.Close()
 
-	err = r.Seek(t.w_size)
-	if err != nil {
-		return err
-	}
-
-	err = w.Seek(t.w_size)
+	err = t.seek_copy(r, w)
 	if err != nil {
 		return err
 	}

@@ -28,23 +28,23 @@ func (c *ScanInfos) cp(t *FileCp, fip, fpath, tip, tpath string) error {
 }
 
 func (c *ScanInfos) CopyAll(t *FileCp, tip, tpath string) error {
-	if c.files == nil {
-		return c.cp(t, c.ip, c.path, tip, tpath)
+	if c.Files == nil {
+		return c.cp(t, c.Ip, c.Path, tip, tpath)
 	} else {
-		for _, d := range c.files {
-			from := c.path + "/" + d
+		for _, d := range c.Files {
+			from := c.Path + "/" + d
 			to := tpath + "/" + d
-			err := c.cp(t, c.ip, from, tip, to)
+			err := c.cp(t, c.Ip, from, tip, to)
 			if err != nil {
 				return err
 			}
 		}
 	}
-	if c.dirs == nil {
+	if c.Dirs == nil {
 		return nil
 	}
-	for _, d := range c.dirs {
-		from := c.path + "/" + d
+	for _, d := range c.Dirs {
+		from := c.Path + "/" + d
 		to := tpath + "/" + d
 		op_to := NewOperator(tip, to)
 		err := op_to.CreateDir()
@@ -52,7 +52,7 @@ func (c *ScanInfos) CopyAll(t *FileCp, tip, tpath string) error {
 			fmt.Println(err)
 			return err
 		}
-		scan_from := NewScanner(c.ip, from)
+		scan_from := NewScanner(c.Ip, from)
 		fs, err := scan_from.Scan()
 		if err != nil {
 			fmt.Println(err)

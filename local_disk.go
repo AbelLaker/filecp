@@ -34,8 +34,8 @@ func new_local_operater(ip, path string) *LocalOperator {
 
 func (d *LocalScanner) Scan() (*ScanInfos, error) {
 	fs := &ScanInfos{
-		ip:   d.ip,
-		path: d.path,
+		Ip:   d.ip,
+		Path: d.path,
 	}
 	f, err := os.Stat(d.path)
 	if err != nil {
@@ -52,13 +52,13 @@ func (d *LocalScanner) Scan() (*ScanInfos, error) {
 	if err != nil {
 		return nil, err
 	}
-	fs.files = make([]string, 0)
-	fs.dirs = make([]string, 0)
+	fs.Files = make([]string, 0)
+	fs.Dirs = make([]string, 0)
 	for _, fi := range dir {
 		if fi.IsDir() {
-			fs.dirs = append(fs.dirs, fi.Name())
+			fs.Dirs = append(fs.Dirs, fi.Name())
 		} else {
-			fs.files = append(fs.files, fi.Name())
+			fs.Files = append(fs.Files, fi.Name())
 		}
 	}
 	//fmt.Println("LocalScanner:Scan", fs)
@@ -70,7 +70,7 @@ func (d *LocalScanner) Scan() (*ScanInfos, error) {
 func (p *LocalOperator) Open(mode int) error {
 	var err error
 	p.mode = mode
-	if mode == FILe_OPEN_MODE_WRITE {
+	if (mode & FILe_OPEN_MODE_WRITE) > 0 {
 		p.f, err = os.OpenFile(p.path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	} else {
 		p.f, err = os.Open(p.path)
@@ -78,20 +78,27 @@ func (p *LocalOperator) Open(mode int) error {
 	return err
 }
 
-func (p *LocalOperator) Stat() (os.FileInfo, error) {
-	return os.Stat(p.path)
+func (p *LocalOperator) Stat() (*FileInfo, error) {
+	st := &FileInfo{}
+	s, err := os.Stat(p.path)
+	if err == nil {
+		st.Size = s.Size()
+		st.IsDir = s.IsDir()
+		return st, err
+	} else {
+		return nil, err
+	}
 }
 
-func (p *LocalOperator) Seek(n int64) error {
-	_, err := p.f.Seek(n, os.SEEK_SET)
-	return err
+func (p *LocalOperator) Seek(n int64) (int64, error) {
+	return p.f.Seek(n, os.SEEK_SET)
 }
 
-func (p *LocalOperator) Read(b []byte) (n int, err error) {
+func (p *LocalOperator) Read(b []byte) (int, error) {
 	return p.f.Read(b)
 }
 
-func (p *LocalOperator) Write(b []byte) (n int, err error) {
+func (p *LocalOperator) Write(b []byte) (int, error) {
 	return p.f.Write(b)
 }
 

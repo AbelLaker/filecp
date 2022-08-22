@@ -2,7 +2,6 @@ package filecp
 
 import (
 	"errors"
-	"os"
 	"sync"
 )
 
@@ -15,6 +14,31 @@ const (
 
 	FILe_OPEN_MODE_READ  = 1
 	FILe_OPEN_MODE_WRITE = 2
+	FILe_COPY_WITH_MD5   = 4
+
+	DEFAULT_FILE_SEVER_URL  = "0.0.0.0:8864"
+	DEFAULT_FILE_SEVER_PORT = ":8864"
+	TEST_ID_STRING          = "test1"
+	TCP_CMD_HEAD_LEN        = 16
+	TCP_CMD_HEAD_TAG0       = 0xff
+	TCP_CMD_HEAD_TAG1       = 0xfe
+	TCP_CMD_TYPE_IDX        = 6
+	TCP_CMD_STATE_IDX       = 7
+	TCP_CMD_EXTERN          = 8
+
+	TCP_CMD_LOGIN      = 'l'
+	TCP_CMD_WRITE_DATA = 'w'
+	TCP_CMD_READ_DATA  = 'r'
+	TCP_CMD_SEEK_DATA  = 's'
+	TCP_CMD_EXCUTE     = 'e'
+	TCP_CMD_DATA       = 'd'
+
+	TCP_CMD_STATE_ERR = 'e'
+
+	TOP_CMD_OPENFILE = "openfile"
+	TOP_CMD_STATFILE = "stat"
+	TOP_CMD_MKDIR    = "mkdir"
+	TOP_CMD_SCANDIR  = "scan"
 )
 
 type FileCp struct {
@@ -30,10 +54,15 @@ type FileCp struct {
 }
 
 type ScanInfos struct {
-	ip    string
-	path  string
-	files []string
-	dirs  []string
+	Ip    string
+	Path  string
+	Files []string
+	Dirs  []string
+}
+
+type FileInfo struct {
+	Size  int64
+	IsDir bool
 }
 
 ////////////////////////////////
@@ -52,13 +81,14 @@ func (s *BasicScanner) Scan() (*ScanInfos, error) {
 
 type Operator interface {
 	Open(mode int) error
-	Stat() (os.FileInfo, error)
-	Seek(n int64) error
+	Stat() (*FileInfo, error)
+	Seek(n int64) (int64, error)
 	Read([]byte) (n int, err error)
 	Write([]byte) (n int, err error)
 	Close()
 	CreateDir() error
 	Path() string
+	WriteEnd() error
 }
 
 type BasicOperator struct {
@@ -71,12 +101,12 @@ func (p *BasicOperator) Open(mode int) error {
 	return errors.New("Err: unkown Operator Open!")
 }
 
-func (p *BasicOperator) Stat() (os.FileInfo, error) {
+func (p *BasicOperator) Stat() (*FileInfo, error) {
 	return nil, nil
 }
 
-func (p *BasicOperator) Seek(n int64) error {
-	return nil
+func (p *BasicOperator) Seek(n int64) (int64, error) {
+	return n, nil
 }
 
 func (p *BasicOperator) Read(b []byte) (n int, err error) {
@@ -95,4 +125,8 @@ func (p *BasicOperator) CreateDir() error {
 
 func (p *BasicOperator) Path() string {
 	return p.path
+}
+
+func (p *BasicOperator) WriteEnd() error {
+	return nil
 }
