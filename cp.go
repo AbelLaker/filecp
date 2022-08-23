@@ -153,6 +153,8 @@ func (t *FileCp) seek_copy(r Operator, w Operator) error {
 	return nil
 }
 func (t *FileCp) copy_finish(r Operator, w Operator) error {
+	r.Finish()
+	w.Finish()
 	if t.check_md5 {
 		rmd5, err := r.GetMd5String()
 		if err != nil {
@@ -167,8 +169,6 @@ func (t *FileCp) copy_finish(r Operator, w Operator) error {
 		}
 		fmt.Println(r.Path(), "md5 eq:", rmd5)
 	}
-	r.Finish()
-	w.Finish()
 	fmt.Println(r.Path(), "copy finish")
 	return nil
 }

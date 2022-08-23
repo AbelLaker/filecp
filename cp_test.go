@@ -27,11 +27,6 @@ func TestA(c *testing.T) {
 	}*/
 
 	m := md5.New()
-	fmt.Println("md5 len:", m.BlockSize())
-	md5.Sum([]byte("111111"))
-	fmt.Println("md5 len:", m.BlockSize())
-	md5.Sum([]byte("111111"))
-	fmt.Println("md5 len:", m.BlockSize())
 	str := fmt.Sprintf("%x", m.Sum(nil))
 	fmt.Println("md5:", str)
 
@@ -47,7 +42,6 @@ func TestB(c *testing.T) {
 
 //go test -v -run TestC
 func TestC(c *testing.T) {
-
 	n, err := connect_remote(DEFAULT_FILE_SEVER_URL)
 	if err != nil {
 		return
