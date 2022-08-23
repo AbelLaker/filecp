@@ -1,6 +1,7 @@
 package filecp
 
 import (
+	"crypto/md5"
 	"fmt"
 	"testing"
 	"time"
@@ -25,7 +26,17 @@ func TestA(c *testing.T) {
 		op.Close()
 	}*/
 
-	t := NewCpTask("127.0.0.1:./test1", "127.0.0.1:./test1.bak")
+	m := md5.New()
+	fmt.Println("md5 len:", m.BlockSize())
+	md5.Sum([]byte("111111"))
+	fmt.Println("md5 len:", m.BlockSize())
+	md5.Sum([]byte("111111"))
+	fmt.Println("md5 len:", m.BlockSize())
+	str := fmt.Sprintf("%x", m.Sum(nil))
+	fmt.Println("md5:", str)
+
+	t := NewCpTask("./test1", "127.0.0.1:./test1.bak")
+	t.SetCheckMd5(true)
 	t.Copy()
 }
 

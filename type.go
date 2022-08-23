@@ -2,6 +2,7 @@ package filecp
 
 import (
 	"errors"
+	"hash"
 	"sync"
 )
 
@@ -15,6 +16,7 @@ const (
 	FILe_OPEN_MODE_READ  = 1
 	FILe_OPEN_MODE_WRITE = 2
 	FILe_COPY_WITH_MD5   = 4
+	FILe_MODE_LOCAL      = 8
 
 	DEFAULT_FILE_SEVER_URL  = "0.0.0.0:8864"
 	DEFAULT_FILE_SEVER_PORT = ":8864"
@@ -38,7 +40,10 @@ const (
 	TOP_CMD_OPENFILE = "openfile"
 	TOP_CMD_STATFILE = "stat"
 	TOP_CMD_MKDIR    = "mkdir"
+	TOP_CMD_FINISH   = "finish"
 	TOP_CMD_SCANDIR  = "scan"
+	TOP_CMD_MD5SIZE  = "md5size"
+	TOP_CMD_MD5STR   = "md5str"
 )
 
 type FileCp struct {
@@ -88,13 +93,19 @@ type Operator interface {
 	Close()
 	CreateDir() error
 	Path() string
-	WriteEnd() error
+	Finish() error
+	GetMd5RecSize() (int64, error)
+	GetMd5String() (string, error)
 }
 
 type BasicOperator struct {
-	ip   string
-	path string
-	mode int
+	ip      string
+	path    string
+	mode    int
+	bmd5    bool
+	bfinish bool
+	md5     hash.Hash
+	md5size int64
 }
 
 func (p *BasicOperator) Open(mode int) error {
@@ -127,6 +138,15 @@ func (p *BasicOperator) Path() string {
 	return p.path
 }
 
-func (p *BasicOperator) WriteEnd() error {
+func (p *BasicOperator) Finish() error {
+	p.bfinish = true
 	return nil
+}
+
+func (p *BasicOperator) GetMd5RecSize() (int64, error) {
+	return 0, nil
+}
+
+func (p *BasicOperator) GetMd5String() (string, error) {
+	return "", nil
 }

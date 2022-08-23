@@ -1,12 +1,15 @@
 package filecp
 
 import (
+	"crypto/md5"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"net"
+	"sync"
 )
 
 type file_server_operator struct {
@@ -34,9 +37,22 @@ type SubCmdStatFile struct {
 	Path string
 }
 
+type Md5Info struct {
+	Md5Size int64
+	Md5str  string
+}
+
 type CmdConnect struct {
 	ID string
 }
+
+type file_md5_cache struct {
+	md5     hash.Hash
+	md5size int64
+}
+
+var cache_lock sync.Mutex
+var cache_md5 map[string]file_md5_cache
 
 //url : 0.0.0.0:8864
 func FileServerRun(url string) error {
@@ -49,7 +65,7 @@ func FileServerRun(url string) error {
 		return err
 	}
 	defer listenner.Close()
-
+	cache_md5 = make(map[string]file_md5_cache, 0)
 	for {
 		conn, err1 := listenner.Accept()
 		if err1 != nil {
@@ -65,10 +81,6 @@ func FileServerRun(url string) error {
 			{
 				d, n, err := read_tcp_cmd(s.conn, b)
 				if err != nil {
-					if s.op != nil {
-						s.op.Close()
-					}
-					fmt.Println("ERR:", err)
 					return
 				}
 				if !s.is_legal_login(d[:n]) {
@@ -86,6 +98,10 @@ func (s *file_server_operator) operate_cmd(b []byte) error {
 		{
 			d, n, err := read_tcp_cmd(s.conn, b)
 			if err != nil {
+				if s.op != nil {
+					s.op.Close()
+				}
+				//fmt.Println(err)
 				return err
 			}
 			switch d[TCP_CMD_TYPE_IDX] {
@@ -165,70 +181,133 @@ func (s *file_server_operator) Read(b []byte) (int, error) {
 	}
 }
 
+func (s *file_server_operator) openfile(sub string) (string, error) {
+	c := &SubCmdOpenFile{}
+	err := json.Unmarshal([]byte(sub), c)
+	if err != nil {
+		return "", err
+	}
+	if s.op == nil {
+		ip, path := parse_remote_path(c.Path)
+		s.op = NewOperator(ip, path)
+	}
+	err = s.op.Open(c.Mode)
+	if err != nil {
+		return "", err
+	}
+	fmt.Println("Open", s.op.Path(), "Success")
+	return "Success", nil
+}
+
+func (s *file_server_operator) statfile(sub string) (string, error) {
+	c := &SubCmdStatFile{}
+	err := json.Unmarshal([]byte(sub), c)
+	if err != nil {
+		return "", err
+	}
+	if s.op == nil {
+		ip, path := parse_remote_path(c.Path)
+		s.op = NewOperator(ip, path)
+	}
+	st, err := s.op.Stat()
+	if err != nil {
+		return "", err
+	}
+	d, _ := json.Marshal(st)
+	return string(d), nil
+}
+
+func (s *file_server_operator) mkdir(sub string) (string, error) {
+	c := &SubCmdStatFile{}
+	err := json.Unmarshal([]byte(sub), c)
+	if err != nil {
+		return "", err
+	}
+	if s.op == nil {
+		ip, path := parse_remote_path(c.Path)
+		s.op = NewOperator(ip, path)
+	}
+	err = s.op.CreateDir()
+	if err != nil {
+		return "", err
+	}
+	return "", nil
+}
+
+func (s *file_server_operator) scan(sub string) (string, error) {
+	c := &SubCmdStatFile{}
+	err := json.Unmarshal([]byte(sub), c)
+	if err != nil {
+		return "", err
+	}
+	ip, path := parse_remote_path(c.Path)
+	scan := NewScanner(ip, path)
+	fs, err := scan.Scan()
+	if err != nil {
+		return "", err
+	}
+	d, _ := json.Marshal(fs)
+	return string(d), nil
+}
+
+func (s *file_server_operator) md5size(sub string) (string, error) {
+	c := &SubCmdStatFile{}
+	err := json.Unmarshal([]byte(sub), c)
+	if err != nil {
+		return "", err
+	}
+	if s.op == nil {
+		ip, path := parse_remote_path(c.Path)
+		s.op = NewOperator(ip, path)
+	}
+	md5size, err := s.op.GetMd5RecSize()
+	if err != nil {
+		return "", err
+	}
+	info := &Md5Info{Md5Size: md5size, Md5str: ""}
+	d, _ := json.Marshal(info)
+	fmt.Println("md5size:", c.Path, "size:", info.Md5Size)
+	return string(d), nil
+}
+
+func (s *file_server_operator) md5str(sub string) (string, error) {
+	c := &SubCmdStatFile{}
+	err := json.Unmarshal([]byte(sub), c)
+	if err != nil {
+		return "", err
+	}
+	if s.op == nil {
+		ip, path := parse_remote_path(c.Path)
+		s.op = NewOperator(ip, path)
+	}
+	md5str, err := s.op.GetMd5String()
+	if err != nil {
+		return "", err
+	}
+	info := &Md5Info{Md5Size: 0, Md5str: md5str}
+	d, _ := json.Marshal(info)
+	fmt.Println("md5str:", c.Path, "str:", info.Md5str)
+	return string(d), nil
+}
+
 func (s *file_server_operator) excute_subcmd(cmd, sub string) (string, error) {
 	if cmd == TOP_CMD_OPENFILE {
-		c := &SubCmdOpenFile{}
-		err := json.Unmarshal([]byte(sub), c)
-		if err != nil {
-			return "", err
-		}
-		if s.op == nil {
-			ip, path := parse_remote_path(c.Path)
-			s.op = NewOperator(ip, path)
-		}
-		err = s.op.Open(c.Mode)
-		if err != nil {
-			return "", err
-		}
-		return "Success", nil
+		return s.openfile(sub)
 	} else if cmd == TOP_CMD_STATFILE {
-		c := &SubCmdStatFile{}
-		err := json.Unmarshal([]byte(sub), c)
-		if err != nil {
-			return "", err
-		}
-		if s.op == nil {
-			ip, path := parse_remote_path(c.Path)
-			s.op = NewOperator(ip, path)
-		}
-		st, err := s.op.Stat()
-		if err != nil {
-			return "", err
-		}
-		d, _ := json.Marshal(st)
-		return string(d), nil
+		return s.statfile(sub)
 	} else if cmd == TOP_CMD_MKDIR {
-		c := &SubCmdStatFile{}
-		err := json.Unmarshal([]byte(sub), c)
-		if err != nil {
-			return "", err
-		}
-		if s.op == nil {
-			ip, path := parse_remote_path(c.Path)
-			s.op = NewOperator(ip, path)
-		}
-		err = s.op.CreateDir()
-		if err != nil {
-			return "", err
+		return s.mkdir(sub)
+	} else if cmd == TOP_CMD_SCANDIR {
+		return s.scan(sub)
+	} else if cmd == TOP_CMD_MD5SIZE {
+		return s.md5size(sub)
+	} else if cmd == TOP_CMD_MD5STR {
+		return s.md5str(sub)
+	} else if cmd == TOP_CMD_FINISH {
+		if s.op != nil {
+			s.op.Finish()
 		}
 		return "", nil
-	} else if cmd == TOP_CMD_SCANDIR {
-		c := &SubCmdStatFile{}
-		err := json.Unmarshal([]byte(sub), c)
-		if err != nil {
-			return "", err
-		}
-		fmt.Println("TOP_CMD_SCANDIR")
-		ip, path := parse_remote_path(c.Path)
-		scan := NewScanner(ip, path)
-		fs, err := scan.Scan()
-		fmt.Println("TOP_CMD_SCANDIR:", fs, err)
-		if err != nil {
-			return "", err
-		}
-		d, _ := json.Marshal(fs)
-		fmt.Println("Scan", string(d))
-		return string(d), nil
 	}
 	return "", errors.New("unkown cmd")
 }
@@ -265,7 +344,6 @@ func (s *file_server_operator) is_legal_login(b []byte) bool {
 		fmt.Println("b[TCP_CMD_TYPE_IDX] != TCP_CMD_LOGIN")
 		return false
 	}
-	fmt.Println(string(b[TCP_CMD_HEAD_LEN:]))
 	err := json.Unmarshal(b[TCP_CMD_HEAD_LEN:], c)
 	if c.ID != get_id_string() || err != nil {
 		fmt.Println("Err ID = ", c.ID, "-", err)
@@ -273,6 +351,8 @@ func (s *file_server_operator) is_legal_login(b []byte) bool {
 	}
 	return true
 }
+
+///////////////////////////////////
 
 func connect_remote(url string) (net.Conn, error) {
 	c, err := net.Dial("tcp", url)
@@ -375,3 +455,26 @@ func read_tcp_cmd(conn net.Conn, b []byte) ([]byte, int, error) {
 	}
 	return b, int(l), nil
 }
+
+func get_server_md5cache(path string) file_md5_cache {
+	cache_lock.Lock()
+	defer cache_lock.Unlock()
+	cache := cache_md5[path]
+	if cache.md5 == nil {
+		cache.md5 = md5.New()
+	} else {
+		delete(cache_md5, path)
+	}
+	return cache
+}
+
+func set_server_md5cache(path string, cache file_md5_cache) {
+	if cache_md5 == nil {
+		return
+	}
+	cache_lock.Lock()
+	defer cache_lock.Unlock()
+	cache_md5[path] = cache
+}
+
+/////////////////////////

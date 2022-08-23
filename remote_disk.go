@@ -131,9 +131,19 @@ func (p *RemoteOperator) Write(b []byte) (int, error) {
 }
 
 func (p *RemoteOperator) Close() {
+	//fmt.Println("RemoteOperator Close")
 	if p.conn != nil {
 		p.conn.Close()
+		p.conn = nil
 	}
+}
+
+func (p *RemoteOperator) Finish() error {
+	r := p.remote_cmd_excute(TOP_CMD_FINISH, "")
+	if r.Code != 0 {
+		return errors.New(r.Des)
+	}
+	return nil
 }
 
 func (p *RemoteOperator) CreateDir() error {
@@ -153,6 +163,32 @@ func (p *RemoteOperator) IsDir() bool {
 		return false
 	}
 	return d.IsDir
+}
+
+func (p *RemoteOperator) GetMd5RecSize() (int64, error) {
+	sub := &SubCmdStatFile{}
+	sub.Path = p.path
+	ds, _ := json.Marshal(sub)
+	r := p.remote_cmd_excute(TOP_CMD_MD5SIZE, string(ds))
+	if r.Code != 0 {
+		return 0, errors.New(r.Des)
+	}
+	m := &Md5Info{}
+	json.Unmarshal([]byte(r.Ext), m)
+	return m.Md5Size, nil
+}
+
+func (p *RemoteOperator) GetMd5String() (string, error) {
+	sub := &SubCmdStatFile{}
+	sub.Path = p.path
+	ds, _ := json.Marshal(sub)
+	r := p.remote_cmd_excute(TOP_CMD_MD5STR, string(ds))
+	if r.Code != 0 {
+		return "", errors.New(r.Des)
+	}
+	m := &Md5Info{}
+	json.Unmarshal([]byte(r.Ext), m)
+	return m.Md5str, nil
 }
 
 ////////////////////

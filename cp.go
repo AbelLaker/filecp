@@ -1,6 +1,7 @@
 package filecp
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -117,6 +118,18 @@ func (t *FileCp) info_copy(r Operator, w Operator) error {
 	} else {
 		t.w_size = st_t.Size
 	}
+
+	if t.check_md5 {
+		wn, _ := w.GetMd5RecSize()
+		rn, _ := r.GetMd5RecSize()
+		if wn < t.w_size {
+			t.w_size = wn
+		}
+		if rn < t.w_size {
+			t.w_size = rn
+		}
+	}
+
 	return nil
 }
 
@@ -139,6 +152,26 @@ func (t *FileCp) seek_copy(r Operator, w Operator) error {
 	}
 	return nil
 }
+func (t *FileCp) copy_finish(r Operator, w Operator) error {
+	if t.check_md5 {
+		rmd5, err := r.GetMd5String()
+		if err != nil {
+			return err
+		}
+		wmd5, err := w.GetMd5String()
+		if err != nil {
+			return err
+		}
+		if rmd5 != wmd5 {
+			return errors.New("md5 not eq: " + rmd5 + " != " + wmd5)
+		}
+		fmt.Println(r.Path(), "md5 eq:", rmd5)
+	}
+	r.Finish()
+	w.Finish()
+	fmt.Println(r.Path(), "copy finish")
+	return nil
+}
 
 func (t *FileCp) copy_loop(r Operator, w Operator) error {
 	buf := make([]byte, 1024*32)
@@ -158,7 +191,7 @@ func (t *FileCp) copy_loop(r Operator, w Operator) error {
 			n, err := r.Read(buf)
 			if err != nil {
 				if err == io.EOF {
-					return w.WriteEnd()
+					return t.copy_finish(r, w)
 				}
 				return err
 			}
@@ -170,7 +203,7 @@ func (t *FileCp) copy_loop(r Operator, w Operator) error {
 			subt += n
 			t.cp_bytes += int64(n)
 			if t.w_size >= t.r_size {
-				return w.WriteEnd()
+				return t.copy_finish(r, w)
 			}
 			if int64(subt) >= maxspeed {
 				break
@@ -215,7 +248,8 @@ func (t *FileCp) copy_excute(r Operator, w Operator) error {
 		return err
 	}
 
-	return t.copy_loop(r, w)
+	err = t.copy_loop(r, w)
+	return err
 }
 
 /////////////////////////////////////////////
