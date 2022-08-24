@@ -1,8 +1,8 @@
 package filecp
 
 import (
-	"crypto/md5"
 	"fmt"
+	"github.com/AbelLaker/md5"
 	"testing"
 	"time"
 )
@@ -18,12 +18,13 @@ func TestA(c *testing.T) {
 	/*{
 		b := make([]byte, 32*1024)
 		op := NewOperator(ip, p)
-		fmt.Println("op.Open", op.Open(FILe_OPEN_MODE_WRITE))
+		fmt.Println("op.Open", op.Open(FILe_OPEN_MODE_READ|FILe_COPY_WITH_MD5))
 		n, err := op.Seek(0)
 		fmt.Println("op.Seek", n, err)
 		_, err = op.Read(b)
 		fmt.Println("op.Read:", err)
 		op.Close()
+		return
 	}*/
 
 	m := md5.New()

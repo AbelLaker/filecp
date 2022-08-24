@@ -1,15 +1,12 @@
 package filecp
 
 import (
-	"crypto/md5"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash"
 	"io"
 	"net"
-	"sync"
 )
 
 type file_server_operator struct {
@@ -46,14 +43,6 @@ type CmdConnect struct {
 	ID string
 }
 
-type file_md5_cache struct {
-	md5     hash.Hash
-	md5size int64
-}
-
-var cache_lock sync.Mutex
-var cache_md5 map[string]file_md5_cache
-
 //url : 0.0.0.0:8864
 func FileServerRun(url string) error {
 	if url == "" {
@@ -65,7 +54,7 @@ func FileServerRun(url string) error {
 		return err
 	}
 	defer listenner.Close()
-	cache_md5 = make(map[string]file_md5_cache, 0)
+	InitCache()
 	for {
 		conn, err1 := listenner.Accept()
 		if err1 != nil {
@@ -454,27 +443,6 @@ func read_tcp_cmd(conn net.Conn, b []byte) ([]byte, int, error) {
 		}
 	}
 	return b, int(l), nil
-}
-
-func get_server_md5cache(path string) file_md5_cache {
-	cache_lock.Lock()
-	defer cache_lock.Unlock()
-	cache := cache_md5[path]
-	if cache.md5 == nil {
-		cache.md5 = md5.New()
-	} else {
-		delete(cache_md5, path)
-	}
-	return cache
-}
-
-func set_server_md5cache(path string, cache file_md5_cache) {
-	if cache_md5 == nil {
-		return
-	}
-	cache_lock.Lock()
-	defer cache_lock.Unlock()
-	cache_md5[path] = cache
 }
 
 /////////////////////////

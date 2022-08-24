@@ -118,7 +118,9 @@ func (t *FileCp) info_copy(r Operator, w Operator) error {
 	} else {
 		t.w_size = st_t.Size
 	}
-
+	if t.w_size == t.r_size {
+		return nil
+	}
 	if t.check_md5 {
 		wn, _ := w.GetMd5RecSize()
 		rn, _ := r.GetMd5RecSize()

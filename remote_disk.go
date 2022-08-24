@@ -113,6 +113,9 @@ func (p *RemoteOperator) Read(b []byte) (int, error) {
 	if p.EOF {
 		return 0, io.EOF
 	}
+	if p.conn == nil {
+		return 0, errors.New("p.conn is nil")
+	}
 	d := make([]byte, TCP_CMD_HEAD_LEN)
 	format_cmd_head(d, TCP_CMD_HEAD_LEN, TCP_CMD_READ_DATA, 0)
 	format_cmd_head_extern_int32(d, int32(len(b)))
@@ -124,6 +127,9 @@ func (p *RemoteOperator) Read(b []byte) (int, error) {
 }
 
 func (p *RemoteOperator) Write(b []byte) (int, error) {
+	if p.conn == nil {
+		return 0, errors.New("p.conn is nil")
+	}
 	d := make([]byte, TCP_CMD_HEAD_LEN)
 	format_cmd_head(d, TCP_CMD_HEAD_LEN+len(b), TCP_CMD_WRITE_DATA, 0)
 	p.conn.Write(d)
